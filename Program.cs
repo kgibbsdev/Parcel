@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Mvc;
+using Parcel;
 using System.Net;
 using System.Net.Mail;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,24 +22,31 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+string fileName = "env.json";
+string jsonString = File.ReadAllText(fileName);
+NetworkCredential creds = JsonSerializer.Deserialize<NetworkCredential>(jsonString);
 
-app.MapGet("/send", () =>
+app.MapPost("/send", ([FromBody] EmailRequest emailRequest) =>
 {
     SmtpClient client = new SmtpClient("smtp.gmail.com", 587);
-    
     client.UseDefaultCredentials = false;
-    NetworkCredential creds = new NetworkCredential("email", "password");
+    client.Credentials = creds;
+    client.EnableSsl = true;
+
+    MailAddress from = new MailAddress(creds.UserName);
+    MailAddress to = new MailAddress(emailRequest.To);
+
+    MailMessage message = new MailMessage(from, to);
+
+    message.Subject = emailRequest.Subject;
+    message.SubjectEncoding = System.Text.Encoding.UTF8;
+    message.Body = emailRequest.Body;
+    message.BodyEncoding = System.Text.Encoding.UTF8;
+    message.IsBodyHtml = true;
+
+    client.Send(message);
 })
 .WithName("SendEmail")
 .WithOpenApi();
 
 app.Run();
-
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
